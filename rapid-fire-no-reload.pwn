@@ -1,6 +1,10 @@
 #include <a_samp>
 
 
+#define MAX_NORELOAD_INFRACTIONS (3)
+#define MAX_RAPIDFIRE_INFRACTIONS (3)
+
+
 static
 	WeaponMagSizes[17] =
 	{
@@ -36,7 +40,7 @@ static
 		// Pistols
 		300, // 22 M9 WHEN DUAL: 185
 		400, // 23 M9 SD
-		800, // 24 Desert Eagle
+		800, // 24 Desert Eagle WHEN C-BUGGING: 100
 
 		// Shotgun
 		1060, // 25 Shotgun
@@ -60,9 +64,12 @@ static
 		0, // 37 Flamer
 		20 // 38 Minigun
 	},
+	PlayerNoReloadInfractions[MAX_PLAYERS],
+	PlayerRapidFireInfractions[MAX_PLAYERS],
 	PlayerSkillLevel[MAX_PLAYERS] = {999, ...},
 	PlayerShotCounter[MAX_PLAYERS],
-	PlayerLastShotTick[MAX_PLAYERS];
+	PlayerLastShotTick[MAX_PLAYERS],
+	PlayerLastCrouchTick[MAX_PLAYERS];
 
 
 forward OnAntiCheatNoReload(playerid, roundsfired);
@@ -99,9 +106,46 @@ public OnPlayerUpdate(playerid)
 #endif
 
 
+public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
+{
+	// Store the time when the player hits crouch
+	if(newkeys & KEY_CROUCH)
+		PlayerLastCrouchTick[playerid] = GetTickCount();
+
+	#if defined ACRoF_OnPlayerKeyStateChange
+		return ACRoF_OnPlayerKeyStateChange(playerid, newkeys, oldkeys);
+	#else
+		return 1;
+	#endif
+}
+#if defined _ALS_OnPlayerKeyStateChange
+	#undef OnPlayerKeyStateChange
+#else
+	#define _ALS_OnPlayerKeyStateChange
+#endif
+ 
+#define OnPlayerKeyStateChange ACRoF_OnPlayerKeyStateChange
+#if defined ACRoF_OnPlayerKeyStateChange
+	forward ACRoF_OnPlayerKeyStateChange(playerid, newkeys, oldkeys);
+#endif
+
 public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY, Float:fZ)
 {
-	if(weaponid == 33 || weaponid == 34)
+
+
+/*==============================================================================
+
+	No-reload / Infinite ammo
+
+==============================================================================*/
+
+
+	// If the server isn't performing well, updates to this callback will be
+	// delayed and could stack up resulting in a sudden mass-call of this
+	// callback which can cause false positives.
+	// More research needed into this though as player lag can also cause this,
+	// possibly a ping check or packet loss check would work.
+	if(GetServerTickRate() < 100)
 		return 1;
 
 	new
@@ -119,16 +163,31 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 
 	// If the amount of fired shots exceeds the magazine size for the weapon
 	// the player is probably using an infinite ammo mod.
-	if(PlayerShotCounter[playerid] == magsize)
+	// Ignores weapons that have a magsize of 1 (shotgun, rifles)
+	if(PlayerShotCounter[playerid] == magsize && magsize > 1)
 	{
 		if(weaponstate != 1)
-			CallLocalFunction("OnAntiCheatNoReload", "ii", playerid, PlayerShotCounter[playerid]);
+		{
+			PlayerNoReloadInfractions[playerid]++;
 
+			if(PlayerNoReloadInfractions[playerid] == MAX_NORELOAD_INFRACTIONS)
+				CallLocalFunction("OnAntiCheatNoReload", "ii", playerid, PlayerShotCounter[playerid]);
+		}
 		else
+		{
 			PlayerShotCounter[playerid] = 0;
+		}
 
 		return 0;
 	}
+
+
+/*==============================================================================
+
+	Rapid Fire
+
+==============================================================================*/
+
 
 	new
 		interval = GetTickCountDifference(PlayerLastShotTick[playerid], GetTickCount()),
@@ -148,12 +207,19 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 	// c-bug needs taking into account
 	if(weaponid == 24)
 	{
-		//
+		if(GetTickCountDifference(PlayerLastCrouchTick[playerid], GetTickCount()) < 600)
+			weaponshotinterval = 100;
 	}
 
 	if(interval < weaponshotinterval)
 	{
-		CallLocalFunction("OnAntiCheatFireRate", "ddd", playerid, weaponid, interval);
+		PlayerRapidFireInfractions[playerid]++;
+
+		if(PlayerRapidFireInfractions[playerid] == MAX_NORELOAD_INFRACTIONS)
+		{
+			PlayerRapidFireInfractions[playerid] = 0;
+			CallLocalFunction("OnAntiCheatFireRate", "ddd", playerid, weaponid, interval);
+		}
 
 		return 0;
 	}
