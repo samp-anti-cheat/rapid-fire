@@ -1,7 +1,29 @@
-#include <a_samp>
+/*
+	Name: No-reload / Infinite ammo
+	Type: Gameplay hack
+	Description: No-reload allows more rounds than the regular magazine size to
+	be fired from any weapon without any reload sequence. Quite a simple hack
+	with a simple method of detecting. Other factors are taken into account such
+	as dual-wield.
+	Detection Method: Each time a player fires a shot, a variable is incremented
+	if the variable's value exceeds the max ammo for that weapon, the player is
+	marked for report. Ammo count is reset when the player switches weapons to
+	reload or reaches the end of their magazine and reloads automatically.
+	Callback: OnAntiCheatNoReload(playerid, roundsfired)
+	Author: Southclaw
 
+	Name: Rapid Fire
+	Type: Gameplay hack
+	Description: Simply increases the rate of fire for weapons.
+	Detection Method: The tick count between each shot is measured, if the value
+	exceeds the default shot interval for that weapon the player is marked for
+	report. C-Bug and dual wield are taken into account as these will increase
+	the fire rate legitimately.
+	Callback: OnAntiCheatFireRate(playerid, weaponid, interval)
+	Author: Southclaw
+*/
 
-#define MAX_NORELOAD_INFRACTIONS (3)
+#define MAX_NORELOAD_INFRACTIONS (1) // Pretty hard to make a mistake with this
 #define MAX_RAPIDFIRE_INFRACTIONS (3)
 
 
