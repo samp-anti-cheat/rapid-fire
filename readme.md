@@ -22,7 +22,7 @@ sampctl package install samp-anti-cheat/rapid-fire
 Include in your code and begin using the library:
 
 ```pawn
-#include <rapid-fiew>
+#include <rapid-fire>
 ```
 
 ## Testing
